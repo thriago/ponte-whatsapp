@@ -10,6 +10,13 @@ O aviso de risco do [README](README.md) vale igual: a API do WhatsApp usada aqui
 Os comandos abaixo assumem Debian 12 ou Ubuntu 22.04+. Em outra distribuição,
 mudam os nomes dos pacotes, não os passos.
 
+Comece baixando o projeto — os passos seguintes rodam de dentro dessa pasta:
+
+```bash
+git clone https://github.com/thriago/ponte-whatsapp.git
+cd ponte-whatsapp
+```
+
 ---
 
 ## 1. Dependências

@@ -48,8 +48,8 @@ Prefere instalar sem Docker, direto no Linux? Veja
 ## Instalar
 
 ```bash
-git clone <endereço deste repositório>
-cd <pasta>
+git clone https://github.com/thriago/ponte-whatsapp.git
+cd ponte-whatsapp
 bash instalar.sh
 ```
 
