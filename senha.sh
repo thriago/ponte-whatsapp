@@ -23,7 +23,10 @@ if [ "${1:-}" = "--nova" ]; then
     read -r -s -p "Repita: " s2; echo
     if [ "$s1" != "$s2" ]; then echo "As senhas não conferem."; exit 1; fi
 
-    docker compose exec -T ponte php /app/bin/senha.php "$s1"
+    # MSYS_NO_PATHCONV=1: no Git Bash do Windows, sem isto o caminho
+    # /app/bin/senha.php é convertido pra C:/Program Files/Git/app/... antes de
+    # chegar no container. No Linux a variável é inofensiva.
+    MSYS_NO_PATHCONV=1 docker compose exec -T ponte php /app/bin/senha.php "$s1"
     echo
     echo "Senha alterada. Entre em http://127.0.0.1:$(grep -m1 '^UI_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 8090)/ com o usuário admin."
     exit 0
