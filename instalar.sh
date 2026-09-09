@@ -106,11 +106,24 @@ else
     echo ".env criado."
 fi
 
+# ── Constroi as imagens ──────────────────────────────────────────────────
+# Direto pelo buildx, e NAO por `docker compose build`: em algumas versoes do
+# Docker Desktop o compose roteia o build por um caminho ("bake") que falha
+# antes de compilar ("failed to execute bake"). O buildx nao passa por ele.
+# Os nomes das imagens batem com o `image:` de cada servico no compose.
+MOTOR_CTX='https://github.com/asternic/wuzapi.git#919c72c9750b2a1eedf0fcf9c9592f05fe46f61c'
+echo
+echo "Construindo o servidor de WhatsApp a partir do codigo-fonte."
+echo "A primeira vez demora alguns minutos."
+docker buildx build "$MOTOR_CTX" -t ponte-whatsapp-motor:local
+echo
+echo "Construindo a ponte."
+docker buildx build ./ponte -t ponte-whatsapp-app:local
+
 # ── Sobe ────────────────────────────────────────────────────────────────
 echo
-echo "Subindo os containers. A primeira vez demora: o servidor de WhatsApp e"
-echo "compilado a partir do codigo-fonte."
-docker compose up -d --build
+echo "Subindo os containers."
+docker compose up -d
 
 echo
 echo "Aguardando a ponte iniciar..."
@@ -141,6 +154,12 @@ echo
 echo "  3. Crie uma sessao e leia o QR Code com o WhatsApp do numero."
 echo "  4. Informe o endereco e o token do seu sistema de atendimento."
 echo
+if [ -n "$SENHA_ESCOLHIDA" ]; then
+    echo "  A senha que voce escolheu ficou registrada no .env (so' o dono do"
+    echo "  arquivo le). Ela nao e' mais usada depois deste primeiro boot:"
+    echo "  se quiser, apague a linha SENHA_ADMIN_INICIAL de la."
+    echo
+fi
 echo "  Esqueceu a senha depois?   bash senha.sh"
 echo "  Atualizar:                 bash atualizar.sh"
 echo "  Ver o que esta rodando:    docker compose ps"

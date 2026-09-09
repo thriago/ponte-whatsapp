@@ -10,6 +10,12 @@ services:
   # específico — não em "main" flutuante. Atualizar o motor é decisão
   # consciente: leia o changelog do wuzapi, teste, e só então troque o commit.
   wuzapi:
+    # A imagem é construída pelo instalador (bash instalar.sh) com
+    # `docker buildx build`, não pelo `docker compose build`: algumas versões
+    # do Docker Desktop roteiam o build do compose por um caminho ("bake") que
+    # falha antes de compilar qualquer coisa. O `build:` fica aqui para quem
+    # quiser construir na mão; o instalador não depende dele.
+    image: ponte-whatsapp-motor:local
     build:
       context: https://github.com/asternic/wuzapi.git#919c72c9750b2a1eedf0fcf9c9592f05fe46f61c
     container_name: ponte-whatsapp-motor
@@ -37,6 +43,8 @@ services:
   # A ponte: interface web + tradução entre o motor e a API do canal
   # integrador, no modo `puxar` (padrão — sem porta aberta, sem domínio).
   ponte:
+    # Idem: construída pelo instalador via buildx (ver nota no serviço wuzapi).
+    image: ponte-whatsapp-app:local
     build:
       context: ./ponte
     container_name: ponte-whatsapp

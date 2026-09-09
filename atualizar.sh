@@ -14,9 +14,14 @@ fi
 echo "Buscando atualização..."
 git pull --ff-only
 
-echo "Reconstruindo e subindo (volumes preservados — a sessão pareada não se perde)..."
-docker compose pull || true
-docker compose up -d --build
+echo "Reconstruindo as imagens (volumes preservados — a sessão pareada não se perde)..."
+# buildx direto, não `docker compose build` — ver a nota no instalar.sh sobre
+# o caminho "bake" que falha em algumas versões do Docker Desktop.
+docker buildx build 'https://github.com/asternic/wuzapi.git#919c72c9750b2a1eedf0fcf9c9592f05fe46f61c' -t ponte-whatsapp-motor:local
+docker buildx build ./ponte -t ponte-whatsapp-app:local
+
+echo "Subindo..."
+docker compose up -d
 
 echo "Pronto. docker compose ps:"
 docker compose ps
