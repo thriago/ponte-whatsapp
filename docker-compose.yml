@@ -77,9 +77,19 @@ services:
       # quanto a sessão do WhatsApp, e também não pode ser perdido num update.
       - ponte_data:/app/data
     ports:
-      # Só a própria máquina, por padrão. Trocar por "0.0.0.0:8090:8090" expõe
-      # a interface pra rede — leia a seção de segurança do README antes.
-      - "127.0.0.1:${UI_PORT:-8090}:8090"
+      # BIND_ADDR decide QUEM alcança a interface, e é a configuração de
+      # segurança mais importante deste arquivo:
+      #
+      #   127.0.0.1  (padrão) só a própria máquina. Serve pra quem instalou no
+      #              próprio computador e abre o navegador nele.
+      #   0.0.0.0    qualquer um que alcance a porta. Necessário quando a ponte
+      #              roda num servidor sem tela e você abre de outro
+      #              computador — e é o caso normal numa VM.
+      #
+      # Com 0.0.0.0 numa máquina de IP público a interface fica exposta à
+      # internet inteira: aí ACL_IPS deixa de ser opcional. O instalador
+      # pergunta isso e preenche os dois juntos.
+      - "${BIND_ADDR:-127.0.0.1}:${UI_PORT:-8090}:8090"
     depends_on:
       - wuzapi
     networks:

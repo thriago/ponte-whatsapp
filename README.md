@@ -57,10 +57,13 @@ O instalador:
 
 1. mostra o aviso de risco e pede que você digite `aceito`;
 2. confere se o Docker está instalado e respondendo;
-3. pergunta a senha do administrador da interface (Enter em branco = ele sorteia
+3. **pergunta se você vai abrir a interface nesta máquina ou de outro
+   computador** — se for de outro, ele descobre o IP desta máquina, libera o
+   acesso pela rede e pergunta de quais IPs você acessa;
+4. pergunta a senha do administrador da interface (Enter em branco = ele sorteia
    uma e mostra no final);
-4. gera o arquivo `.env` com os segredos, sem você precisar editar nada;
-5. sobe os containers e imprime como entrar.
+5. gera o arquivo `.env` com os segredos, sem você precisar editar nada;
+6. sobe os containers e imprime **o endereço certo** para entrar.
 
 A primeira execução demora alguns minutos: o motor de WhatsApp é compilado a
 partir do código-fonte. Da segunda vez em diante sobe em segundos.
@@ -72,7 +75,9 @@ Docker Desktop.
 
 ## Depois de instalar
 
-1. **Abra a interface**: `http://127.0.0.1:8090/`
+1. **Abra a interface** no endereço que o instalador imprimiu — `http://127.0.0.1:8090/`
+   se você instalou no próprio computador, ou `http://<ip-da-máquina>:8090/` se
+   instalou num servidor.
 2. **Entre** com o usuário `admin` e a senha que apareceu no fim da instalação.
    Se ela foi sorteada, a troca é obrigatória no primeiro acesso.
 3. **Sessões → Nova sessão**: dê um nome ("Comercial", "Suporte"). Cada sessão é
@@ -141,11 +146,22 @@ docker compose down -v && bash instalar.sh
 
 ## Segurança
 
-- A interface nasce escutando **só em `127.0.0.1`**: só quem está na própria
-  máquina abre. Expor para a rede é escolha sua, feita no `docker-compose.yml`.
-- Se expuser, preencha `ACL_IPS` no `.env` com os IPs que podem acessar.
-  Domínio, `Origin` e `Referer` não protegem nada — quem chama escolhe o que
-  mandar. A fronteira é IP e senha.
+- Quem alcança a interface é decidido por `BIND_ADDR` no `.env`, respondido na
+  instalação:
+
+  | `BIND_ADDR` | Quem abre |
+  |---|---|
+  | `127.0.0.1` (padrão) | só a própria máquina |
+  | `0.0.0.0` | qualquer um que alcance a porta |
+
+  Para mudar depois: edite o `.env` e rode `docker compose up -d`.
+- **`0.0.0.0` numa máquina com IP público deixa a interface exposta à internet.**
+  Nesse caso preencha `ACL_IPS` no `.env` com os IPs de onde você acessa — o
+  instalador pergunta isso. Domínio, `Origin` e `Referer` não protegem nada:
+  quem chama escolhe o que mandar. A fronteira é IP e senha.
+- **A interface é HTTP puro, sem TLS.** Numa rede local, tudo bem. Atravessando
+  a internet, a senha viaja em claro: ponha atrás de uma VPN ou de um proxy
+  reverso com HTTPS.
 - A sessão pareada dá acesso de leitura a **todas as conversas daquele número**.
   O volume do Docker é tão sensível quanto o próprio celular.
 - O token do canal fica guardado em texto no banco local da ponte (ela precisa
@@ -168,3 +184,19 @@ docker compose down -v && bash instalar.sh
 
 Como funciona por dentro, e por que cada decisão foi tomada assim:
 [docs/COMO-FUNCIONA.md](docs/COMO-FUNCIONA.md).
+
+---
+
+## Licença
+
+Este projeto está sob a licença **MIT** — veja [LICENSE](LICENSE). Use, altere,
+distribua e cobre por isso se quiser. Sem garantia de espécie alguma.
+
+O motor de WhatsApp é o **[wuzapi](https://github.com/asternic/wuzapi)**, de
+Nicolás Gudiño, também sob licença MIT. Ele **não faz parte deste repositório**:
+o instalador o compila a partir do código-fonte oficial, preso a um commit
+específico. Todo o crédito pelo motor é do projeto original, e é lá que se
+reportam problemas dele.
+
+O wuzapi, por sua vez, usa a biblioteca
+[whatsmeow](https://github.com/tulir/whatsmeow).

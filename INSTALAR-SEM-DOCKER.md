@@ -144,8 +144,19 @@ php -S 127.0.0.1:8090 -t ponte/public ponte/public/index.php
 ⚠️ **Um único `puxar_loop.php` por instalação.** Dois processos com o mesmo
 token do canal disputam a mesma fila e duplicam mensagem.
 
-Abra `http://127.0.0.1:8090/` e siga o passo a passo do README (parear o QR e
-informar o endereço e o token do canal).
+**Se você vai abrir a interface de outro computador**, `127.0.0.1` não serve —
+ela só responde a quem está na própria máquina. Troque por `0.0.0.0`:
+
+```bash
+php -S 0.0.0.0:8090 -t ponte/public ponte/public/index.php
+```
+
+e **preencha `ACL_IPS`** com os IPs de onde você acessa, senão qualquer um que
+alcance a porta chega à tela de login. Lembre também que isto é HTTP puro: pela
+internet, use VPN ou um proxy reverso com HTTPS.
+
+Abra `http://127.0.0.1:8090/` (ou `http://<ip-da-máquina>:8090/`) e siga o passo
+a passo do README — parear o QR e informar o endereço e o token do canal.
 
 ---
 
