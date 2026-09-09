@@ -1,0 +1,67 @@
+/* Crua de propósito: sem framework de componente e sem tema, só o
+   suficiente pra ser legível numa tela de operação. */
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, Segoe UI, Arial, sans-serif;
+    margin: 0;
+    background: #f2f2f2;
+    color: #111;
+}
+.aviso-risco {
+    background: #7a1f1f;
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 0.9em;
+    font-weight: bold;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.aviso-allowlist {
+    background: #1f4f7a;
+    color: #fff;
+    padding: 6px 16px;
+    font-size: 0.85em;
+    text-align: center;
+}
+.aviso-allowlist-homologacao {
+    background: #7a1f1f;
+}
+.menu {
+    background: #222;
+    padding: 8px 16px;
+    display: flex;
+    gap: 16px;
+}
+.menu a { color: #ddd; text-decoration: none; }
+.menu a:hover { text-decoration: underline; }
+.menu-user { color: #888; margin-left: auto; }
+main { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+.card { background: #fff; border: 1px solid #ccc; padding: 20px; max-width: 360px; }
+.card-login { margin: 60px auto; }
+label { display: block; margin: 10px 0 4px; font-size: 0.9em; }
+input[type=text], input[type=password], input[type=url] {
+    padding: 6px; font-size: 1em; width: 100%; max-width: 300px;
+}
+button, .link {
+    padding: 6px 14px; font-size: 0.95em; cursor: pointer;
+    background: #333; color: #fff; border: none;
+}
+button:hover { background: #555; }
+.link { background: none; color: #333; text-decoration: underline; padding: 0; }
+.link-perigo { color: #7a1f1f; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; background: #fff; }
+th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 0.9em; }
+th { background: #e8e8e8; }
+.acoes form { margin: 0; }
+.detalhe { font-family: monospace; font-size: 0.85em; max-width: 320px; word-break: break-all; }
+.evento-erro { background: #fdeaea; }
+.evento-ok { background: #eafbea; }
+.flash { padding: 10px 14px; margin-bottom: 14px; border: 1px solid; }
+.flash-ok { background: #eafbea; border-color: #2e7d32; }
+.flash-erro { background: #fdeaea; border-color: #7a1f1f; }
+.flash-info { background: #eaf2fd; border-color: #1f4f7a; }
+.ok-grande { font-size: 1.3em; color: #2e7d32; }
+.aviso-inline { color: #7a1f1f; font-weight: bold; }
+code { background: #eee; padding: 2px 4px; }

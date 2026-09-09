@@ -1,0 +1,87 @@
+# Nome do projeto fixo, pra não depender do nome da pasta onde você clonou
+# (o nome dos volumes é derivado dele — mudar depois "perde" a sessão pareada).
+name: ponte-whatsapp
+
+services:
+  # Motor: o wuzapi expõe a biblioteca whatsmeow por REST (várias sessões, QR,
+  # token por sessão, reconexão). É software de terceiros, licença MIT.
+  #
+  # A imagem é construída a partir do código-fonte oficial, preso num commit
+  # específico — não em "main" flutuante. Atualizar o motor é decisão
+  # consciente: leia o changelog do wuzapi, teste, e só então troque o commit.
+  wuzapi:
+    build:
+      context: https://github.com/asternic/wuzapi.git#919c72c9750b2a1eedf0fcf9c9592f05fe46f61c
+    container_name: ponte-whatsapp-motor
+    # -skipmedia é OBRIGATÓRIO. Sem essa flag o wuzapi baixa TODA a mídia de
+    # TODA conversa assim que ela chega, e um número movimentado estoura a
+    # memória da máquina. A ponte busca mídia sob demanda, uma a uma, só do
+    # que vai ser encaminhado (/chat/download{image,audio,video,document}).
+    command:
+      - "-skipmedia"
+      - "-datadir=/app/dbdata"
+    environment:
+      WUZAPI_ADMIN_TOKEN: ${WUZAPI_ADMIN_TOKEN:?defina no .env — rode bash instalar.sh}
+      WUZAPI_GLOBAL_ENCRYPTION_KEY: ${WUZAPI_GLOBAL_ENCRYPTION_KEY:?defina no .env — rode bash instalar.sh}
+      WUZAPI_GLOBAL_HMAC_KEY: ${WUZAPI_GLOBAL_HMAC_KEY:?defina no .env — rode bash instalar.sh}
+      WEBHOOK_FORMAT: json
+      TZ: America/Sao_Paulo
+    volumes:
+      # A sessão pareada (o QR que você leu) mora aqui. NUNCA apague este
+      # volume numa atualização: sem ele é preciso ler o QR de novo.
+      - wuzapi_dbdata:/app/dbdata
+    networks:
+      - interna
+    restart: on-failure
+
+  # A ponte: interface web + tradução entre o motor e a API do canal
+  # integrador, no modo `puxar` (padrão — sem porta aberta, sem domínio).
+  ponte:
+    build:
+      context: ./ponte
+    container_name: ponte-whatsapp
+    environment:
+      WUZAPI_BASE_URL: http://wuzapi:8080
+      WUZAPI_ADMIN_TOKEN: ${WUZAPI_ADMIN_TOKEN:?defina no .env — rode bash instalar.sh}
+      # Usada só pra CONFERIR (e registrar) a assinatura x-hmac-signature que
+      # o motor manda nos webhooks. É defesa adicional: a fronteira principal
+      # é a rede interna do Docker, onde o motor só é alcançável pela ponte.
+      WUZAPI_HMAC_KEY: ${WUZAPI_GLOBAL_HMAC_KEY:?defina no .env — rode bash instalar.sh}
+      # Como o motor (outro container) alcança esta ponte pra entregar
+      # webhook — nome do serviço na rede interna, nunca localhost.
+      PONTE_INTERNAL_URL: http://ponte:8090
+      # Filtro OPCIONAL de números, nos dois sentidos. VAZIO = atende todos os
+      # números, que é o modo normal. Preenchido = modo homologação, fala só
+      # com quem estiver na lista. Ver ponte/src/Allowlist.php e o .env.example.
+      ALLOWLIST_NUMEROS: ${ALLOWLIST_NUMEROS:-}
+      # Senha inicial do admin, escolhida na instalação. Vazia = o primeiro
+      # boot sorteia uma e exige a troca no primeiro login. Ignorada depois
+      # que o admin já existe.
+      SENHA_ADMIN_INICIAL: ${SENHA_ADMIN_INICIAL:-}
+      APP_PORT: "8090"
+      # Endereços de IP que podem abrir a interface, além de 127.0.0.1.
+      # Vazio = só a própria máquina. Domínio, Origin e Referer não protegem
+      # nada aqui: quem chama escolhe o que mandar. A fronteira é IP + senha.
+      ACL_IPS: ${ACL_IPS:-}
+    volumes:
+      # Banco da ponte: sessões (nome, token do motor, URL e token do sistema
+      # de atendimento), login do admin e histórico de eventos. Tão sensível
+      # quanto a sessão do WhatsApp, e também não pode ser perdido num update.
+      - ponte_data:/app/data
+    ports:
+      # Só a própria máquina, por padrão. Trocar por "0.0.0.0:8090:8090" expõe
+      # a interface pra rede — leia a seção de segurança do README antes.
+      - "127.0.0.1:${UI_PORT:-8090}:8090"
+    depends_on:
+      - wuzapi
+    networks:
+      - interna
+    restart: on-failure
+
+networks:
+  interna:
+    driver: bridge
+
+volumes:
+  wuzapi_dbdata:
+  ponte_data:

@@ -1,0 +1,4 @@
+# Scripts que rodam dentro de container Linux (ou via Git Bash/WSL) não
+# podem ganhar CRLF no checkout do Windows — um shebang terminado em \r
+# quebra o interpretador com "/bin/sh^M: bad interpreter".
+*.sh text eol=lf
