@@ -110,6 +110,7 @@ invisível.
 | `Message.conversation` | `texto` |
 | `pushName` | `contato.nome` |
 | mídia | baixada sob demanda e enviada por upload direto |
+| localização (pino ou tempo real) | `tipo: localizacao` com latitude, longitude, nome e endereço. O GuiaChat mostra no mapa e o robô de atendimento recebe o endereço. Instalação que ainda não aceita o tipo recebe um texto com o link do mapa |
 
 **Saindo** (sistema de atendimento → motor):
 
@@ -119,8 +120,8 @@ invisível.
 | `midia.url` | baixa com o token do canal → `POST /chat/send/{image,audio,video,document}` |
 
 O que é ignorado de propósito, sempre com o motivo registrado em **Últimos
-eventos**: eco da própria mensagem (senão vira laço infinito), grupo, e
-status/stories.
+eventos**: eco da própria mensagem (senão vira laço infinito), grupo,
+status/stories, figurinha, contato compartilhado e enquete.
 
 ### Os cantos que mordem
 

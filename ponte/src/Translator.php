@@ -162,7 +162,7 @@ final class Translator
     }
 
     /**
-     * @return array{ignorar:true,motivo:string}|array{ignorar:false,idExterno:string,de:string,tipo:string,texto:?string,nome:?string,midiaRef:?array}
+     * @return array{ignorar:true,motivo:string}|array{ignorar:false,idExterno:string,de:string,tipo:string,texto:?string,nome:?string,midiaRef:?array,localizacao?:array}
      */
     public static function wuzapiEventParaGuiaChat(array $envelope): array
     {
@@ -234,6 +234,36 @@ final class Translator
             return ['ignorar' => false, 'idExterno' => $idExterno, 'de' => $de, 'tipo' => 'texto', 'texto' => $texto, 'nome' => $nome, 'midiaRef' => null];
         }
 
+        // Localização: o pino fixo e a localização em tempo real chegam com os
+        // mesmos campos. Vai pro canal como `tipo: localizacao` (ver
+        // index.php, que também trata instalação antiga que não conhece o tipo).
+        foreach (['locationMessage', 'liveLocationMessage'] as $chaveLoc) {
+            $loc = self::campo($msg, [$chaveLoc, ucfirst($chaveLoc)]);
+            if (!is_array($loc)) continue;
+            $lat = self::campo($loc, ['degreesLatitude', 'DegreesLatitude']);
+            $lng = self::campo($loc, ['degreesLongitude', 'DegreesLongitude']);
+            if (!is_numeric($lat) || !is_numeric($lng)) {
+                return ['ignorar' => true, 'motivo' => 'localização sem coordenadas'];
+            }
+            $nomeLugar = self::campo($loc, ['name', 'Name']);
+            $endereco  = self::campo($loc, ['address', 'Address']);
+            return [
+                'ignorar'     => false,
+                'idExterno'   => $idExterno,
+                'de'          => $de,
+                'tipo'        => 'localizacao',
+                'texto'       => null,
+                'nome'        => $nome,
+                'midiaRef'    => null,
+                'localizacao' => array_filter([
+                    'latitude'  => (float) $lat,
+                    'longitude' => (float) $lng,
+                    'nome'      => is_string($nomeLugar) ? trim($nomeLugar) : '',
+                    'endereco'  => is_string($endereco) ? trim($endereco) : '',
+                ], fn($v) => $v !== ''),
+            ];
+        }
+
         // Mídia: procura o primeiro sub-objeto de mídia conhecido.
         //
         // ⚠️ `tipoWuzapi`: o wuzapi espera o tipo em INGLÊS
@@ -288,7 +318,7 @@ final class Translator
             ];
         }
 
-        return ['ignorar' => true, 'motivo' => 'mensagem sem texto nem mídia reconhecida (sticker/localização/contato/enquete — fora do v1)'];
+        return ['ignorar' => true, 'motivo' => 'mensagem sem texto nem mídia reconhecida (figurinha, contato, enquete — fora do v1)'];
     }
 
     /**

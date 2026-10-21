@@ -33,6 +33,21 @@ final class GuiaChatClient
     }
 
     /**
+     * @param array{latitude:float,longitude:float,nome?:string,endereco?:string} $localizacao
+     * @return array{0:int,1:?array}
+     */
+    public function enviarLocalizacao(string $idExterno, string $de, array $localizacao, ?string $nome = null): array
+    {
+        $corpo = ['id_externo' => $idExterno, 'de' => $de, 'tipo' => 'localizacao', 'localizacao' => $localizacao];
+        if ($nome !== null && $nome !== '') $corpo['contato'] = ['nome' => $nome];
+
+        [$code, $body] = Http::json('POST', $this->url('/api/v1/canal/mensagem'), [
+            'Authorization: Bearer ' . $this->token,
+        ], $corpo, 60);
+        return [$code, $body];
+    }
+
+    /**
      * @param 'imagem'|'audio'|'video'|'documento' $tipo
      * @return array{0:int,1:?array}
      */

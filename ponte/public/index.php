@@ -642,6 +642,25 @@ function rotaWebhookWuzapi(int $sessaoId): void
 
     $gc = new GuiaChatClient((string) $s['guiachat_url'], (string) $s['guiachat_token']);
 
+    if ($trad['tipo'] === 'localizacao') {
+        [$code, $resp] = $gc->enviarLocalizacao($trad['idExterno'], $trad['de'], $trad['localizacao'], $trad['nome']);
+        // Instalação que ainda não conhece o tipo responde 422 tipo_invalido.
+        // Aí a localização vai como texto com o link do mapa (mesmo
+        // id_externo), em vez de ser perdida.
+        if ($code === 422 && (($resp['erro']['codigo'] ?? '') === 'tipo_invalido')) {
+            $l = $trad['localizacao'];
+            $onde = trim(implode(' — ', array_filter([$l['nome'] ?? '', $l['endereco'] ?? ''])));
+            $texto = '📍 Localização: ' . ($onde !== '' ? $onde . ' ' : '')
+                . 'https://maps.google.com/?q=' . $l['latitude'] . ',' . $l['longitude'];
+            [$code, $resp] = $gc->enviarMensagemTexto($trad['idExterno'], $trad['de'], $texto, $trad['nome']);
+            EventLog::registrar($sessaoId, 'entrada', 'mensagem_localizacao_como_texto', $code, json_encode($resp));
+        } else {
+            EventLog::registrar($sessaoId, 'entrada', 'mensagem_localizacao', $code, json_encode($resp));
+        }
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
     if ($trad['midiaRef'] === null) {
         [$code, $resp] = $gc->enviarMensagemTexto($trad['idExterno'], $trad['de'], (string) $trad['texto'], $trad['nome']);
         EventLog::registrar($sessaoId, 'entrada', 'mensagem_texto', $code, json_encode($resp));
@@ -701,7 +720,8 @@ function rotaWebhookWuzapi(int $sessaoId): void
     $bytes = base64_decode($dl['base64'], true);
     $tmp = tempnam(sys_get_temp_dir(), 'gcint_');
     file_put_contents($tmp, $bytes);
-    $ext = explode('/', $ref['mimetype'])[1] ?? 'bin';
+    // "audio/ogg; codecs=opus" -> "ogg" (sem o corte, o nome saía "midia_X.ogg; codecs=opus")
+    $ext = explode('/', trim(explode(';', $ref['mimetype'])[0]))[1] ?? 'bin';
     $nomeArquivo = 'midia_' . $trad['idExterno'] . '.' . $ext;
 
     [$code, $resp] = $gc->enviarMensagemComArquivo(
