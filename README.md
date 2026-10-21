@@ -134,6 +134,8 @@ commitada, para não descartar customização em silêncio.
 | Mandei mensagem e não chegou no atendimento | tela **Últimos eventos** — ela mostra o código HTTP da chamada e o motivo da recusa |
 | "Testar conexão" recusa o token | confira se o endereço é a base do seu GuiaChat (sem `/api/...` no fim) e se o token é o do canal **Integrador** |
 | Mensagem de um número específico não entra | confira `ALLOWLIST_NUMEROS` no `.env` — ver abaixo |
+| A sessão aparece como **Desconectado** sozinha | o WhatsApp desconectou o aparelho (alguém removeu em "Aparelhos conectados", ou o próprio WhatsApp derrubou). Clique em **conectar / QR** e leia de novo. As respostas que não conseguiram sair nesse meio tempo aparecem como falha no atendimento, com o motivo; não ficam guardadas pra sair depois |
+| Resposta aparece com falha no atendimento | o motivo vem junto: número sem WhatsApp, sessão desconectada, ou mensagem que passou do prazo (`MENSAGEM_VALIDADE_MIN`) sem conseguir sair |
 | Nada responde | `docker compose ps` mostra o que está de pé; `docker compose restart` reinicia |
 
 Recomeçar do zero, **perdendo o pareamento e o histórico**:

@@ -105,6 +105,7 @@ Preencha:
 | `UI_PORT` | `8090`, ou outra porta livre |
 | `ACL_IPS` | vazio, salvo se for acessar de outra máquina |
 | `ALLOWLIST_NUMEROS` | **vazio** para atender todos (o normal) |
+| `MENSAGEM_VALIDADE_MIN` | `5`: minutos que uma resposta pode esperar pra sair antes de ser descartada |
 | `SENHA_ADMIN_INICIAL` | a senha que você quer para o usuário `admin` |
 
 Fora do Docker, três variáveis a mais dizem à ponte onde as coisas estão:

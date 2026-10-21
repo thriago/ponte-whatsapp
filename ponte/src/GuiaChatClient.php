@@ -65,6 +65,52 @@ final class GuiaChatClient
         return [$code, $body];
     }
 
+    /**
+     * Confirma dizendo o que aconteceu com cada entrega (`itens` do POST
+     * /confirmar): `enviado` com o id da mensagem no WhatsApp, ou `falhou`
+     * com o motivo, que aparece pro agente.
+     *
+     * Manda `ids` junto, com TODOS os ids. Uma instalação mais antiga, que
+     * ainda não conhece `itens`, usa só o `ids` e tira tudo da fila do mesmo
+     * jeito; só não fica sabendo do motivo da falha. O que não pode é uma
+     * entrega que falhou de vez ficar voltando da fila.
+     *
+     * @param array<int,array{id:int,status:string,id_externo?:?string,erro?:?string}> $itens
+     * @return array{0:int,1:?array}
+     */
+    public function confirmarResultados(array $itens): array
+    {
+        $limpos = [];
+        foreach ($itens as $it) {
+            $item = ['id' => (int) $it['id'], 'status' => $it['status']];
+            if (!empty($it['id_externo'])) $item['id_externo'] = (string) $it['id_externo'];
+            if (!empty($it['erro']))       $item['erro'] = mb_substr((string) $it['erro'], 0, 300);
+            $limpos[] = $item;
+        }
+        [$code, $body] = Http::json('POST', $this->url('/api/v1/canal/confirmar'), [
+            'Authorization: Bearer ' . $this->token,
+        ], [
+            'ids'   => array_map(fn($i) => $i['id'], $limpos),
+            'itens' => $limpos,
+        ]);
+        return [$code, $body];
+    }
+
+    /**
+     * Repassa entregue/lido de uma resposta que a ponte enviou. `$idExterno`
+     * é o id da mensagem no WhatsApp, o mesmo mandado em `itens[].id_externo`.
+     *
+     * @param 'entregue'|'lido' $status
+     * @return array{0:int,1:?array}
+     */
+    public function status(string $idExterno, string $status): array
+    {
+        [$code, $body] = Http::json('POST', $this->url('/api/v1/canal/status'), [
+            'Authorization: Bearer ' . $this->token,
+        ], ['id_externo' => $idExterno, 'status' => $status], 15);
+        return [$code, $body];
+    }
+
     /** Baixa uma mídia de SAÍDA (payload.midia.url) com o Bearer do canal. */
     public function baixarMidia(string $url): array
     {

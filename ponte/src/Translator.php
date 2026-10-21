@@ -295,17 +295,21 @@ final class Translator
      * SAÍDA — payload de uma `entrega` (GET /pendentes ou webhook do
      * GuiaChat) -> o que mandar pro wuzapi.
      *
-     * @return array{tipo:string,phone:string,texto:?string,midia:?array{url:string,tamanho:?int}}
+     * @return array{tipo:string,phone:string,texto:?string,midia:?array{url:string,tamanho:?int},enviadoEm:?int}
+     *   enviadoEm = quando o agente/bot mandou (timestamp), se o payload
+     *   trouxer — é o que decide se a mensagem ficou velha demais pra sair.
      */
     public static function entregaGuiaChatParaWuzapi(array $payload): array
     {
         $tipo  = (string) ($payload['tipo'] ?? 'texto');
         $mapa  = ['imagem' => 'image', 'audio' => 'audio', 'video' => 'video', 'documento' => 'document'];
+        $enviadoEm = is_string($payload['enviado_em'] ?? null) ? strtotime($payload['enviado_em']) : false;
         return [
             'tipo'  => $mapa[$tipo] ?? 'text',
             'phone' => (string) ($payload['para'] ?? ''),
             'texto' => isset($payload['texto']) ? (string) $payload['texto'] : null,
             'midia' => is_array($payload['midia'] ?? null) ? $payload['midia'] : null,
+            'enviadoEm' => $enviadoEm !== false ? $enviadoEm : null,
         ];
     }
 }

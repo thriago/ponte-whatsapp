@@ -10,6 +10,14 @@
 
 final class WuzapiClient
 {
+    /**
+     * Eventos que cada sessão assina. Message = mensagem de cliente;
+     * ReadReceipt = entregue/lido das respostas que a ponte mandou;
+     * LoggedOut = o WhatsApp desconectou o aparelho (a sessão precisa de QR
+     * de novo).
+     */
+    public const EVENTOS = ['Message', 'ReadReceipt', 'LoggedOut'];
+
     public function __construct(
         private string $baseUrl,
         private string $adminToken
@@ -28,7 +36,7 @@ final class WuzapiClient
      * "change_id_to_string" do próprio wuzapi mudou isso e a doc ficou pra
      * trás; onde a doc e o binário divergirem, vale o binário.
      */
-    public function criarUsuario(string $nome, string $token, string $webhookUrl, string $eventos = 'Message'): array
+    public function criarUsuario(string $nome, string $token, string $webhookUrl, string $eventos = 'Message,ReadReceipt,LoggedOut'): array
     {
         [$code, $body, $raw] = Http::json('POST', $this->baseUrl . '/admin/users', [
             'Authorization: ' . $this->adminToken,
@@ -73,10 +81,47 @@ final class WuzapiClient
         [$code, $body, $raw] = Http::json('POST', $this->baseUrl . '/session/connect', [
             'Token: ' . $sessaoToken,
         ], [
-            'Subscribe' => ['Message'],
+            'Subscribe' => self::EVENTOS,
             'Immediate' => true,
         ]);
         return ['ok' => $code >= 200 && $code < 300, 'detalhe' => $raw];
+    }
+
+    /**
+     * Garante que a sessão assina os eventos de EVENTOS, sem precisar
+     * reconectar. Sessões criadas antes dos recibos assinavam só "Message";
+     * o laço chama isto ao iniciar. PUT /webhook troca URL e eventos juntos,
+     * por isso a URL vai junto.
+     */
+    public function assinarEventos(string $sessaoToken, string $webhookUrl): bool
+    {
+        [$code] = Http::json('PUT', $this->baseUrl . '/webhook', ['Token: ' . $sessaoToken], [
+            'webhook' => $webhookUrl,
+            'events'  => self::EVENTOS,
+            'active'  => true,
+        ]);
+        return $code >= 200 && $code < 300;
+    }
+
+    /**
+     * Pergunta ao WhatsApp como um número está registrado (nono dígito).
+     *
+     * @return ?array{existe:bool,jid:?string} null = não deu pra consultar
+     *   (erro, timeout, sessão fora). Ver src/NumeroWhatsapp.php.
+     */
+    public function checarNumero(string $sessaoToken, string $telefone): ?array
+    {
+        [$code, $body] = Http::json('POST', $this->baseUrl . '/user/check', ['Token: ' . $sessaoToken], [
+            'Phone' => [$telefone],
+        ], 15);
+        $usuarios = $body['data']['Users'] ?? null;
+        if ($code !== 200 || !is_array($usuarios) || !$usuarios) return null;
+        $u = $usuarios[0];
+        $jid = $u['JID'] ?? null;
+        return [
+            'existe' => !empty($u['IsInWhatsapp']),
+            'jid'    => (is_string($jid) && $jid !== '') ? $jid : null,
+        ];
     }
 
     public function desconectar(string $sessaoToken): bool
@@ -111,6 +156,10 @@ final class WuzapiClient
         $d = is_array($d) ? $d : [];
         $jid = $d['jid'] ?? $d['Jid'] ?? $d['JID'] ?? null;
         return [
+            // respondeu=false: não deu pra perguntar (rede, wuzapi fora). Não
+            // confundir com "deslogado" — só loggedIn=false COM respondeu=true
+            // quer dizer que o WhatsApp está mesmo desconectado.
+            'respondeu' => $code === 200,
             'connected' => $code === 200 && !empty($d['connected'] ?? $d['Connected'] ?? null),
             'loggedIn'  => $code === 200 && !empty($d['loggedIn'] ?? $d['LoggedIn'] ?? null),
             'jid'       => (is_string($jid) && $jid !== '') ? $jid : null,
@@ -129,14 +178,35 @@ final class WuzapiClient
 
     // ── Envio (saída: GuiaChat -> WhatsApp) ─────────────────────────────
 
-    /** @return array{ok:bool,detalhe:string} */
+    /**
+     * @return array{ok:bool,detalhe:string,id:?string,timeout:bool,semSessao:bool}
+     *   id = id da mensagem no WhatsApp (liga os recibos de entregue/lido).
+     *   timeout = a chamada estourou o tempo SEM resposta: a mensagem pode
+     *   ter saído mesmo assim (o wuzapi não cancela o envio). Quem chama não
+     *   pode tratar isso como "não enviado".
+     *   semSessao = a sessão não está conectada no wuzapi.
+     */
     public function enviarTexto(string $sessaoToken, string $phone, string $body): array
     {
-        [$code, , $raw] = Http::json('POST', $this->baseUrl . '/chat/send/text', ['Token: ' . $sessaoToken], [
+        $r = Http::json('POST', $this->baseUrl . '/chat/send/text', ['Token: ' . $sessaoToken], [
             'Phone' => $phone,
             'Body'  => $body,
         ]);
-        return ['ok' => $code >= 200 && $code < 300, 'detalhe' => $raw];
+        return self::resultadoEnvio($r);
+    }
+
+    /** @param array{0:int,1:?array,2:string} $r */
+    private static function resultadoEnvio(array $r): array
+    {
+        [$code, $body, $raw] = $r;
+        $id = $body['data']['Id'] ?? null;
+        return [
+            'ok'        => $code >= 200 && $code < 300,
+            'detalhe'   => $raw,
+            'id'        => (is_string($id) && $id !== '') ? $id : null,
+            'timeout'   => $code === 0 && stripos($raw, 'timed out') !== false,
+            'semSessao' => stripos($raw, 'no session') !== false,
+        ];
     }
 
     /** @param 'image'|'audio'|'video'|'document' $tipo */
@@ -144,14 +214,14 @@ final class WuzapiClient
     {
         $campo = ['image' => 'Image', 'audio' => 'Audio', 'video' => 'Video', 'document' => 'Document'][$tipo] ?? null;
         if ($campo === null) {
-            return ['ok' => false, 'detalhe' => "tipo de mídia desconhecido: {$tipo}"];
+            return ['ok' => false, 'detalhe' => "tipo de mídia desconhecido: {$tipo}", 'id' => null, 'timeout' => false, 'semSessao' => false];
         }
         $payload = ['Phone' => $phone, $campo => $dataUri];
         if ($caption !== null && $tipo !== 'audio') $payload['Caption'] = $caption;
         if ($tipo === 'document') $payload['FileName'] = $fileName ?: 'arquivo';
 
-        [$code, , $raw] = Http::json('POST', $this->baseUrl . '/chat/send/' . $tipo, ['Token: ' . $sessaoToken], $payload);
-        return ['ok' => $code >= 200 && $code < 300, 'detalhe' => $raw];
+        $r = Http::json('POST', $this->baseUrl . '/chat/send/' . $tipo, ['Token: ' . $sessaoToken], $payload, 60);
+        return self::resultadoEnvio($r);
     }
 
     // ── Download sob demanda (entrada: mídia que chegou com -skipmedia) ──

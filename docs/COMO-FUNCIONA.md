@@ -54,10 +54,27 @@ O custo é alguns segundos de latência na resposta, invisíveis num atendimento
 O modo `webhook` continua existindo para quem já tem servidor com domínio e
 HTTPS — é a mesma fila do outro lado, só muda quem procura quem.
 
-**Regra que evita mensagem duplicada:** ler não confirma. A confirmação vai
-depois da entrega, e só dos ids realmente entregues. Se o envio falhar, a
-entrega não é confirmada e volta sozinha à fila — mensagem não entregue não pode
-desaparecer.
+**Ler não confirma.** A confirmação vai depois da entrega, com o resultado de
+cada uma: `enviado` (com o id da mensagem no WhatsApp) ou `falhou` (com o
+motivo, que aparece para o atendente ao lado da mensagem). Entrega não
+confirmada volta sozinha à fila depois de 60 segundos.
+
+Quatro regras em cima disso:
+
+| Regra | Por quê |
+|---|---|
+| **Uma entrega sai uma vez só.** O que já foi entregue ao motor fica registrado no banco da ponte; se a entrega voltar da fila, a ponte só confirma de novo | o motor pode levar mais de um minuto pra responder um envio quando a conexão do WhatsApp está ruim, e não cancela o envio quando a ponte desiste de esperar. Reenviar nessa hora fazia o cliente receber a mesma mensagem dezenas de vezes |
+| **Mensagem velha não sai.** Passou de `MENSAGEM_VALIDADE_MIN` (padrão 5 minutos) sem conseguir enviar, ela é descartada como `falhou` | a resposta de uma hora atrás, chegando fora de contexto e depois que outro atendente já assumiu, é pior que nenhuma |
+| **Sessão desconectada não acumula fila.** Com o WhatsApp deslogado, a entrega espera no máximo 1 minuto e depois falha, avisando que é preciso ler o QR de novo | é o tempo de uma reconexão rápida, sem segurar mensagem por horas |
+| **O número é conferido antes de enviar.** A ponte pergunta ao WhatsApp como o número está registrado (ver "nono dígito" abaixo) e falha com o motivo se ele não tiver WhatsApp | enviar para um número que não existe não dá erro nenhum: a mensagem só some |
+
+**Entregue e lido.** A ponte assina os recibos do motor e repassa ao
+GuiaChat (`POST /api/v1/canal/status`) os das mensagens que ela mesma enviou.
+É o que acende os dois risquinhos no atendimento.
+
+O motivo da falha e os recibos dependem de o GuiaChat aceitar o resultado no
+`confirmar`. Numa instalação mais antiga, a ponte continua tirando tudo da fila
+do mesmo jeito; só não aparecem o motivo nem os risquinhos.
 
 ⚠️ **Um único consumidor por token.** Dois processos puxando a mesma fila
 colidem na trava de visibilidade e duplicam mensagem.
@@ -111,7 +128,7 @@ status/stories.
 |---|---|
 | **LID** | o endereçamento novo da Meta: o remetente vem como um ID opaco (`...@lid`) em vez do telefone. O telefone real vem num campo irmão, `SenderAlt`. A ponte guarda o par localmente e resolve pelo mapa quando o `SenderAlt` não vier. Sem os dois, ela **recusa** em vez de inventar um contato |
 | **aparelho secundário** | o JID vem como `numero:76@servidor`. O `:76` é o aparelho, não parte do número — colar os dois cria um contato fantasma |
-| **nono dígito** | `5511999998888` e `551199998888` são a mesma pessoa. A allowlist aceita as duas formas automaticamente |
+| **nono dígito** | `5511999998888` e `551199998888` são a mesma pessoa, mas quem tem WhatsApp desde antes do nono dígito continua registrado sem ele. Enviar pra forma errada não dá erro: a mensagem some. Antes de enviar, a ponte pergunta ao WhatsApp (`/user/check` do motor) qual é o número registrado, envia pra ele e guarda a resposta por 7 dias. A allowlist aceita as duas formas automaticamente |
 | **maiúsculas do motor** | a documentação do wuzapi diverge do binário em alguns campos (`connected` vs `Connected`, `id` string vs inteiro). Onde divergir, vale o binário — por isso o parser tenta variantes em vez de travar numa só |
 
 Todo evento de entrada grava o **payload bruto** no registro. É o que permite
@@ -160,7 +177,7 @@ quem está na própria máquina.
 | Dado | Onde | Perder significa |
 |---|---|---|
 | sessão pareada do WhatsApp | volume `wuzapi_dbdata` | ler o QR de novo |
-| sessões, integração, eventos, login | volume `ponte_data` | reconfigurar a integração |
+| sessões, integração, eventos, login, registro de envios | volume `ponte_data` | reconfigurar a integração |
 | segredos | `.env` na pasta do repositório | regerar e reconfigurar |
 
 `docker compose down` preserva os dois volumes. `docker compose down -v`

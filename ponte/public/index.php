@@ -12,6 +12,7 @@ require_once __DIR__ . '/../src/WuzapiClient.php';
 require_once __DIR__ . '/../src/GuiaChatClient.php';
 require_once __DIR__ . '/../src/Translator.php';
 require_once __DIR__ . '/../src/Allowlist.php';
+require_once __DIR__ . '/../src/Envios.php';
 
 Auth::iniciarSessao();
 
@@ -350,7 +351,7 @@ function viewEventos(): string
     $eventos = EventLog::ultimos(100);
     $linhas = '';
     foreach ($eventos as $e) {
-        $cor = str_contains($e['tipo'], 'falhou') ? 'evento-erro' : (str_contains($e['tipo'], 'enviado') || str_contains($e['tipo'], 'confirmar') ? 'evento-ok' : '');
+        $cor = (str_contains($e['tipo'], 'falhou') || str_contains($e['tipo'], 'descartada') || $e['tipo'] === 'sessao_caiu') ? 'evento-erro' : (str_contains($e['tipo'], 'enviado') || str_contains($e['tipo'], 'confirmar') ? 'evento-ok' : '');
         $linhas .= '<tr class="' . $cor . '">'
             . '<td>' . h($e['criado_em']) . '</td>'
             . '<td>' . h($e['direcao']) . '</td>'
@@ -386,7 +387,7 @@ function rotaCriarSessao(): void
     $id = (int) $pdo->lastInsertId();
 
     $webhookUrl = rtrim((string) (getenv('PONTE_INTERNAL_URL') ?: 'http://ponte:8090'), '/') . '/webhook/wuzapi/' . $id;
-    $r = wuzapi()->criarUsuario($nome, $token, $webhookUrl, 'Message');
+    $r = wuzapi()->criarUsuario($nome, $token, $webhookUrl);
     if (!$r['ok']) {
         $pdo->prepare('DELETE FROM sessoes WHERE id = ?')->execute([$id]);
         EventLog::registrar(null, 'sistema', 'criar_sessao_falhou', null, $r['erro'] ?? 'sem detalhe');
@@ -550,6 +551,31 @@ function rotaTestarConexao(int $id): void
 }
 
 /**
+ * Recibo de entregue/lido -> POST /canal/status, só pras mensagens que a
+ * própria ponte enviou (as que estão em `envios` com o mesmo wa_id). Recibo
+ * de qualquer outra coisa (status, grupo, mensagem mandada pelo celular) é
+ * ignorado em silêncio: são muitos e não interessam ao atendimento.
+ */
+function repassarRecibo(array $s, array $envelope): void
+{
+    $estado = (string) ($envelope['state'] ?? '');
+    $status = ['Delivered' => 'entregue', 'Read' => 'lido'][$estado] ?? null;
+    if ($status === null) return;
+
+    $evento = $envelope['event'] ?? $envelope['Event'] ?? null;
+    $ids = is_array($evento) ? ($evento['MessageIDs'] ?? $evento['MessageIds'] ?? []) : [];
+    if (!is_array($ids)) return;
+
+    $gc = new GuiaChatClient((string) $s['guiachat_url'], (string) $s['guiachat_token']);
+    foreach ($ids as $waId) {
+        if (!is_string($waId) || $waId === '') continue;
+        if (Envios::porWaId((int) $s['id'], $waId) === null) continue;
+        [$code, $resp] = $gc->status($waId, $status);
+        EventLog::registrar((int) $s['id'], 'saida', 'recibo_' . $status, $code, "mensagem {$waId}: " . json_encode($resp));
+    }
+}
+
+/**
  * ENTRADA (WhatsApp -> sistema de atendimento). Recebe o webhook do wuzapi,
  * traduz (ver src/Translator.php) e repassa.
  */
@@ -580,6 +606,27 @@ function rotaWebhookWuzapi(int $sessaoId): void
     $stmt = Db::get()->prepare('SELECT * FROM sessoes WHERE id = ?');
     $stmt->execute([$sessaoId]);
     $s = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // O WhatsApp desconectou o aparelho (removido em "Aparelhos conectados",
+    // ou derrubado pelo próprio WhatsApp). Sem isto a tela seguia mostrando
+    // "Conectado" com a sessão morta.
+    $tipoEvento = (string) ($envelope['type'] ?? $envelope['Type'] ?? '');
+    if ($tipoEvento === 'LoggedOut') {
+        if ($s) {
+            Db::get()->prepare("UPDATE sessoes SET status = 'desconectado' WHERE id = ?")->execute([$sessaoId]);
+            EventLog::registrar($sessaoId, 'sistema', 'sessao_caiu', null, 'o WhatsApp desconectou este aparelho — leia o QR de novo em "conectar / QR"');
+        }
+        echo json_encode(['ok' => true]);
+        return;
+    }
+    if ($tipoEvento === 'ReadReceipt') {
+        if ($s && !empty($s['guiachat_url']) && !empty($s['guiachat_token'])) {
+            repassarRecibo($s, $envelope);
+        }
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
     if (!$s || empty($s['guiachat_url']) || empty($s['guiachat_token'])) {
         EventLog::registrar($sessaoId, 'entrada', 'sessao_sem_integracao', null, 'sessão não integrada ainda (falta URL/token do GuiaChat) — payload bruto: ' . substr($corpoBruto, 0, 6000));
         echo json_encode(['ok' => true]);

@@ -78,6 +78,33 @@ final class Db
                 visto_em TEXT NOT NULL
             )
         ');
+        // O que já foi entregue ao wuzapi, por entrega. É o que impede a
+        // mesma resposta de sair duas vezes quando a entrega volta da fila
+        // (ver src/Envios.php). wa_id = id da mensagem no WhatsApp, usado
+        // pra ligar os recibos de entregue/lido de volta à entrega.
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS envios (
+                sessao_id INTEGER NOT NULL,
+                entrega_id INTEGER NOT NULL,
+                estado TEXT NOT NULL,
+                wa_id TEXT,
+                erro TEXT,
+                visto_em TEXT NOT NULL,
+                atualizado_em TEXT NOT NULL,
+                PRIMARY KEY (sessao_id, entrega_id)
+            )
+        ');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_envios_wa_id ON envios (wa_id)');
+        // Telefone como veio do sistema de atendimento -> número como o
+        // WhatsApp conhece (nono dígito). Ver src/NumeroWhatsapp.php.
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS numero_whatsapp (
+                telefone TEXT PRIMARY KEY,
+                numero TEXT,
+                existe INTEGER NOT NULL,
+                verificado_em TEXT NOT NULL
+            )
+        ');
     }
 
     public static function agora(): string

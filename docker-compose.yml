@@ -62,6 +62,10 @@ services:
       # números, que é o modo normal. Preenchido = modo homologação, fala só
       # com quem estiver na lista. Ver ponte/src/Allowlist.php e o .env.example.
       ALLOWLIST_NUMEROS: ${ALLOWLIST_NUMEROS:-}
+      # Minutos que uma resposta pode esperar pra sair. Passou disso sem
+      # conseguir enviar, é descartada e o atendente vê o motivo, em vez de
+      # chegar atrasada pro cliente. Ver docs/COMO-FUNCIONA.md.
+      MENSAGEM_VALIDADE_MIN: ${MENSAGEM_VALIDADE_MIN:-5}
       # Senha inicial do admin, escolhida na instalação. Vazia = o primeiro
       # boot sorteia uma e exige a troca no primeiro login. Ignorada depois
       # que o admin já existe.
